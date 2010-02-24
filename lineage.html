@@ -23,7 +23,14 @@
 
           ul {margin:3px 0 0 10px;padding:0;}
           li {display:inline;list-style-type:none;}
-          ul li a {text-decoration:none; background-color:#D4D4D4; border:3px solid #f1f1f1; border-bottom:2px solid #333; border-right:3px solid #333;margin:3px;color:#000;}
+          li span {padding:2px 2px 2px 6px;}
+          ul a {text-decoration:none;
+		background-color:#D4D4D4;
+		border:3px solid #f1f1f1;
+		border-bottom:2px solid #333;
+		border-right:3px solid #333;
+		margin:3px;
+		color:#000;}
           .color1 {background-color:#fff;}
           .color2 {background-color:#fcc;}
           .color3 {background-color:#fc9;}
@@ -61,10 +68,10 @@
         -->
     </style>
 
+<!-- A seedable random number generator that replaces Math.Random().  Allows reproducible trees. -->
 <script language="JavaScript" src="http://davidbau.com/encode/seedrandom.js"></script>
 
 <script language="JavaScript" type="text/JavaScript">
-
 // Grabbed off of http://ja.partridgez.com/lineage.html
 // apparently (C) Jeff Partridge,
 // from a Create Commons Attribution-Noncommercial-Share Alike-3.0 United States License
@@ -73,7 +80,6 @@
 // asian (appropriate to my campaign), and made use of a seedable rand so trees can
 // be consistently regenerated.  Saves on printing them out and wasting paper.
 // -- Todd Stumpf 2010, Feb 20
-
 
 function getRequestParameter( name ) {
     name = name.replace(/[\[]/,"\\\[").replace(/[\]]/,"\\\]");
@@ -86,17 +92,22 @@ function getRequestParameter( name ) {
 	return results[1];
 }
 
-var pid=0; //keeps track of each persons ID
-var lcolor=0;	 //background color for each generation
+var RATE_married = 97;
+var RATE_remarry_barren = 15;
+var RATE_remarry_single = 5;
+var RATE_remarry_heirs = 3;
+var RATE_bachelor = 4;  // %chance refuse to marry -- applies to both men and women.
 
-Math.seedrandom(getRequestParameter("seed"));
+var pid = 0;     // keeps track of each persons ID
+var lcolor = 0;	 // background color for each generation
 
-function rollD(sides) { //multi-die rolling function
+// Roll a D-sided dice, resulting in a number from 1 to D.
+function rollD(sides) {
     return Math.round(Math.random() * (sides-1)) + 1;
 }
 
 // *** begin personality type generation code ***
-function goGetType() {
+function goGetPType() {
     var EI=typeEI();
     var SN=typeSN();
     var TF=typeTF();
@@ -270,7 +281,7 @@ function getNewName(person, newname){ //this function is called when *surprise*
 }
 // *** end lame name generation **
 
-function getOpositeGender(gender) { // flip gender (for the spouse) if one is given
+function getOppositeGender(gender) { // flip gender (for the spouse) if one is given
     var newgen = "";
     switch(gender) {			 // otherwise randomize it
     case "M":newgen="F";break;
@@ -279,16 +290,18 @@ function getOpositeGender(gender) { // flip gender (for the spouse) if one is gi
     }
     return newgen;
 }
+
 function randgen() { // random gender
     var gen;
     (rollD(6)<4) ? gen ="M" : gen="F";
     return gen;
 }
 
-function getbday(married, gender) { // get birthday from day married and gender
+// Determine birth year based on year of marriage and person's gender
+function getbyear(married, gender) {
     var mage;
 
-    mage = rollD(9)+12; // women (who may produce progency) marry from age 13-21
+    mage = rollD(9)+12; // women (who are likely to produce progeny) marry from age 13-21
 
     if (gender=="M") {	 // if male, potentially add a few years
 	for (var i=0; i < 5; i++) {
@@ -301,7 +314,11 @@ function getbday(married, gender) { // get birthday from day married and gender
     return birth;
 }
 
-function getdage(mday , mage) { // get age they die at
+function getmage(gender) {
+    return Math.abs(getbyear(0,gender))
+}
+
+function getdage(myear , mage) { // get age they die at
     var temp1a = rollD(20);
     var temp1b = rollD(20);
     var temp1;
@@ -323,7 +340,7 @@ function getdage(mday , mage) { // get age they die at
 	dage=temp1a+60;
     }
 
-    if (dage && mage) {  // Generating spouse, so must be alive when married...
+    if (dage && mage) {  // Generating spouse, so should be alive when married...
 	while (dage < mage) {   // if died before married, set to marriage.
 	    dage = mage;
 	}
@@ -332,40 +349,40 @@ function getdage(mday , mage) { // get age they die at
     var death = dage;
     return death;
 }
-function getfert(fertstart) { // return fertility based on age
+
+function getfert(fertyear) { // return fertility based on age
     var chance = 0;
-    if (fertstart<14) {chance=10;}
-    if (fertstart==14) {chance=20;}
-    if (fertstart==15) {chance=40;}
-    if (fertstart==16) {chance=60;}
-    if (fertstart==17) {chance=80;}
-    if (fertstart>17 && fertstart<30) {chance=98;}
-    if (fertstart>30 && fertstart<35) {chance=80;}
-    if (fertstart>35 && fertstart<40) {chance=40;}
-    if (fertstart>40 && fertstart<45) {chance=20;}
-    if (fertstart>44) {chance=3;}	 
+    if (fertyear<14) {chance=10;}
+    if (fertyear==14) {chance=20;}
+    if (fertyear==15) {chance=40;}
+    if (fertyear==16) {chance=60;}
+    if (fertyear==17) {chance=80;}
+    if (fertyear>17 && fertyear<30) {chance=98;}
+    if (fertyear>30 && fertyear<35) {chance=80;}
+    if (fertyear>35 && fertyear<40) {chance=40;}
+    if (fertyear>40 && fertyear<45) {chance=20;}
+    if (fertyear>44) {chance=3;}
+    if (fertyear>52) {chance=1;}  // Only non-zero because of magic.
 
     return chance;
 }
 
-function getKids(person,spouse) { // get kids
-    var mend;  // year marriage ends
+function getKids(person, spouse) { // get kids
+    var mend;  // year marriage ends -- no divorce for now...
+    (person.dyear < spouse.dyear) ? mend=person.dyear : mend=spouse.dyear;
+
     var mspan; // number of years married
-    var fertstart;
+    mspan = mend - person.myear;
 
-    (person.dday < spouse.dday) ? mend=person.dday : mend=spouse.dday;
-
-    mspan = mend - person.mday;
-
+    var fertstart; // age of woman at time of marriage
     (person.gender=="F") ? fertstart=person.mage : fertstart=spouse.mage;
 
     var newcolor=parseInt(spouse.gencolor)+1;
-
     if (newcolor==14){newcolor=1;}
 
-    var yom=0;
+    var yom=0;  // years of marriage
     while (yom <= mspan) {
-	if ( rollD(100) < getfert(fertstart+yom) ) {
+	if ( rollD(100) <= getfert(fertstart+yom) ) {
 	    var kid = new Object();
 
 	    kid.parent = spouse.pid;
@@ -375,50 +392,64 @@ function getKids(person,spouse) { // get kids
 	    kid.gender=randgen();
 	    kid.name=getname(kid);
 
-	    kid.bday=spouse.mday + yom;
+	    kid.byear=spouse.myear + yom;
 	    kid.dage=getdage();
+	    kid.dyear = kid.byear + kid.dage;
 
-	    kid.dday = kid.dage + kid.bday;
-	    kid.mage = Math.abs(getbday(0,kid.gender)); 
-	    kid.mday = kid.bday + kid.mage;
+	    kid.mage = getmage(kid.gender);
+	    kid.myear = kid.byear + kid.mage;
 
 	    kid.family = true;
 
-	    if ((kid.mday > kid.dday) || (rollD(100) < 4)) { 
+	    if ((kid.myear > kid.dyear) || (rollD(100) <= RATE_bachelor)) {
 		kid.mage =null;
-		kid.mday =null;
+		kid.myear =null;
 		kid.family =null;
 	    }
 
-	    kid.ptype=goGetType();
-
+	    kid.ptype=goGetPType();
 	    kid.gencolor=newcolor;
 
-	    displayperson(kid);
+	    displayPerson(kid);
 
 	    yom += rollD(2)+rollD(2)+rollD(2)-2;  // delay before trying for kid.
 	}
 	yom++;
     }
 }
-function getParent(parent) { // recreate parent info from text nodes
-    parentnode=document.getElementById(parent);
-    var newparent=new Object();
-    newparent.pid=parent; 
-    newparent.name=parentnode.firstChild.firstChild.value;
-    oldcolor=parentnode.className.substring(parentnode.className.indexOf("r")+1,parentnode.className.length);
-    newparent.gencolor=oldcolor;
-    newparent.gender=parentnode.firstChild.nextSibling.firstChild.nodeValue.charAt(6);
-    lived=parentnode.firstChild.nextSibling.nextSibling.firstChild.nodeValue;
-    newparent.bday=parseInt(lived.substring(8,lived.indexOf("t")));
-    newparent.dday=parseInt(lived.substring(lived.indexOf("o")+1,lived.length));
-    married=parentnode.firstChild.nextSibling.nextSibling.nextSibling.firstChild.nodeValue;
-    newparent.mday=parseInt(married.substring(20,married.lastIndexOf("/")));
-    newparent.mage=parseInt(married.substring(married.lastIndexOf("/")+1,married.length));
-    died=parentnode.firstChild.nextSibling.nextSibling.nextSibling.nextSibling.firstChild.nodeValue;
-    newparent.dage=parseInt(died.substring(12,died.length));
-    return newparent;
+
+// Recover a 'person' object from the HTML properties/attributes/elements.
+function getPerson(person) { // recreate person info from text nodes
+    var newperson=new Object();
+    newperson.pid = person;
+
+    personnode = document.getElementById(person);    
+    newperson.gencolor = personnode.className.substring(personnode.className.indexOf("r")+1,
+					      personnode.className.length);
+    var node = personnode.firstChild;
+    newperson.name = node.firstChild.value;
+    node = node.nextSibling;
+    
+    newperson.gender = node.firstChild.nextSibling.nodeValue;
+    node = node.nextSibling;
+
+    newperson.byear = parseInt(node.firstChild.nextSibling.nodeValue);
+    node = node.nextSibling;
+
+    newperson.dyear = parseInt(node.firstChild.nextSibling.nodeValue);
+    node = node.nextSibling;
+
+    newperson.myear = parseInt(node.firstChild.nextSibling.nodeValue);
+    node = node.nextSibling;
+
+    newperson.mage = parseInt(node.firstChild.nextSibling.nodeValue);
+    node = node.nextSibling;
+
+    newperson.dage = parseInt(node.firstChild.nextSibling.nodeValue);
+
+    return newperson;
 }
+
 function getSpouse(person) { // getFamily calls this
     var spouse=new Object();
 
@@ -427,138 +458,201 @@ function getSpouse(person) { // getFamily calls this
 
     spouse.pid="person"+pid;
 
-    spouse.gender=getOpositeGender(person.gender);
+    spouse.gender=getOppositeGender(person.gender);
 
     spouse.name=getname(spouse);
 
-    spouse.mday=person.mday;
-    spouse.bday=getbday(spouse.mday,spouse.gender);
+    spouse.myear=person.myear;
+    spouse.byear=getbyear(spouse.myear,spouse.gender);
 
-    spouse.mage=spouse.mday-spouse.bday;	
+    spouse.mage=spouse.myear-spouse.byear;	
 
-    spouse.dage=getdage(spouse.mday,spouse.mage);
-    spouse.dday=spouse.bday+spouse.dage;
+    spouse.dage=getdage(spouse.myear,spouse.mage);
+    spouse.dyear=spouse.byear+spouse.dage;
 
-    spouse.ptype=goGetType();	 
+    spouse.ptype=goGetPType();	 
     spouse.gencolor=person.gencolor;
     return spouse;
 }
 
-function getFamily(person) { // child calls this
-    document.getElementById("family"+person).style.display="none"; // hide button
-    newparent = getParent(person);
+// Determine current number of kids for parent
+function countKids(person) {
+    node = document.getElementById(person)
+    return (node.childNodes.length - 5)
+}
 
-    if(rollD(100)>3) { // need to make sure marriage isn't automatic
+// Generate a person's geneological contribution to the family tree,
+// including children and remarriages (and further children).
+function getFamily(person) {
+    // As we are generating their descendents, hide the 'generate' button
+    document.getElementById("family"+person).style.display="none";
+
+    newparent = getPerson(person);
+
+    if( rollD(100) > (100-RATE_married)) { // need to make sure marriage isn't automatic
 	spouse = getSpouse(newparent); // get spouse
-	displayperson(spouse); // display spouse
-	getKids(newparent,spouse); // get kids
+	displayPerson(spouse); // display spouse
+	getKids(newparent, spouse); // get kids
 
-	grief = spouse.dday;
-	while (newparent.dday>=grief) { // check for remarriage until death
-	    grief+=rollD(2)+rollD(2)+rollD(2)-2; // delay before remarriage
-	    newchance=(newparent.dday-grief)*2; // 2% chance/year before 50
-	    newparent.mday=grief; // make sure remarriage date is correct
-	    if(rollD(100)<newchance) {
-		spouse=getSpouse(newparent); // get spouse
-		displayperson(spouse); // display spouse
-		getKids(newparent,spouse); // get kids
-	    } 
+	grief = spouse.dyear;
+	while (newparent.dyear >= grief) { // check for remarriage until death
+	    grief += rollD(2)+rollD(2)+rollD(2)-2; // delay before remarriage
+	    newparent.myear = grief; // make sure remarriage date is correct
+
+	    if (newparent.myear <= newparent.dyear) {
+		offspring = countKids(person)
+		switch(offspring) {
+		    case "0": newchance = (newparent.dyear - grief) * RATE_remarry_barren; break;
+		    case "1": newchance = (newparent.dyear - grief) * RATE_remarry_single; break;
+		    default: newchance = (newparent.dyear - grief) * RATE_remarry_heirs; break;
+		}
+		if(rollD(100) < newchance) {
+		    spouse = getSpouse(newparent); // get spouse
+		    displayPerson(spouse); // display spouse
+		    getKids(newparent,spouse); // get kids
+		    grief = spouse.dyear;
+		} 
+	    }
 	}
     }
 }
 
-function getFormData() {	// start here, pull data from form or generate missing info
-    //	document.getElementById("getinfo").style.display=='none';
+// getFormData():
+//   The big kahuna.  Take the parameters (possibly sparse) and produce a geneology
+// that conforms to the constraints.  Reproducibly.
+function getFormData() {
+    Math.seedrandom(document.getElementById("seed").value)
+
+    // Hide the form-entry page components.
+    document.getElementById("getinfo").style.display="none";
+    document.getElementById("intro").style.display="none";
+    document.getElementById("footer").style.display="none";
+
+    // Read in form data for person #1, add them to top of lineage chart.
     var person = new Object();
     person.parent="person"+pid;
     pid++;
     person.pid="person"+pid;
-    (document.startform.gender1.value != "x") ? person.gender=document.startform.gender1.value : person.gender=getOpositeGender(person.gender);
-    (document.startform.name1.value) ? person.name=document.startform.name1.value : person.name=getname(person);
-    (document.startform.married1.value) ? person.mday=parseInt(document.startform.married1.value) : person.mday=0;
-    (document.startform.born1.value) ? person.bday=parseInt(document.startform.born1.value) : person.bday=getbday(person.mday,person.gender);
-    person.mage=person.mday-person.bday;
-    (document.startform.died1.value) ? person.dday=parseInt(document.startform.died1.value) : person.dday=getdage(person.mday,person.mage);
-    person.dage=person.dday-person.bday;
-    person.ptype=goGetType();
-    person.gencolor=1;
-    displayperson(person); 
+    (document.startform.gender1.value != "x") ?
+	person.gender = document.startform.gender1.value : person.gender = randgen();
+    (document.startform.name1.value) ?
+	person.name = document.startform.name1.value : person.name=getname(person);
+    (document.startform.married1.value) ?
+	person.myear = parseInt(document.startform.married1.value) : person.myear = 0;
+    (document.startform.born1.value) ?
+	person.byear = parseInt(document.startform.born1.value) : person.byear = getbyear(person.myear,
+											  person.gender);
+    person.mage = person.myear - person.byear;
+    if (document.startform.died1.value) {
+	person.dyear = parseInt(document.startform.died1.value);
+	person.dage = person.dyear - person.byear;
+    } else {
+	person.dage = getdage(person.myear, person.mage);
+	person.dyear = person.byear + person.dage;
+    }
+
+    person.ptype = goGetPType();
+    person.gencolor = 1;
+    displayPerson(person); 
+
+    // Read in (or produce) person #2, their spouse, and add them to the chart.
     var spouse = new Object();
-    spouse.parent="person"+pid;
+    spouse.parent = "person"+pid;
     pid++
-    spouse.pid="person"+pid; 
-    spouse.gender=getOpositeGender(person.gender);
-    (document.startform.name2.value) ? spouse.name=document.startform.name2.value : spouse.name=getname(spouse);
+    spouse.pid = "person"+pid; 
+    spouse.gender = getOppositeGender(person.gender);
+    (document.startform.name2.value) ?
+	spouse.name=document.startform.name2.value : spouse.name = getname(spouse);
+    spouse.myear = person.myear;
+    (document.startform.born2.value) ?
+	spouse.byear=parseInt(document.startform.born2.value) : spouse.byear = getbyear(spouse.myear,
+											spouse.gender);
+    spouse.mage = spouse.myear - spouse.byear;
+    if (document.startform.died2.value) {
+	spouse.dyear = parseInt(document.startform.died2.value);
+	spouse.dage = spouse.dyear - spouse.byear;
+    } else {
+	spouse.dage = getdage(spouse.myear, spouse.mage);
+	spouse.dyear = spouse.byear + spouse.dage;
+    }
 
-    spouse.mday=person.mday;
-    (document.startform.born2.value) ? spouse.bday=parseInt(document.startform.born2.value) : spouse.bday=getbday(spouse.mday,spouse.gender);
-    spouse.mage=spouse.mday-spouse.bday;
-    (document.startform.died2.value) ? spouse.dday=parseInt(document.startform.died2.value) : spouse.dday=getdage(person.mday,spouse.mage);
-    spouse.dage=spouse.dday-spouse.bday;	
-    spouse.ptype=goGetType();
+    spouse.ptype=goGetPType();
     spouse.gencolor=1;
-    displayperson(spouse);
-    getKids(person,spouse);
+    displayPerson(spouse);
+
+    // Generate their direct desendants ...
+    getKids(person, spouse);
 }
 
-function getNode(words) { // displayperson calls this ??????
-    newText=document.createTextNode(words);
-    newLI=document.createElement('li');
-    newLI.appendChild(newText);
-    return newLI;
+function appendColumn(colclass, colname, colvalue) {
+    var moniker = document.createElement('span');
+    moniker.appendChild(document.createTextNode(colname));
+    moniker.className = 'moniker';
+
+    var value = document.createTextNode(colvalue);
+
+    var item = document.createElement('li');
+    item.appendChild(moniker)
+    item.appendChild(value)
+
+    if (colvalue == null) {
+	item.style.display="none";
+    }
+
+    item.className = colclass;
+    return item;
 }
 
-function displayperson(person) { // create and append nodes with person info
-    document.getElementById("getinfo").style.display="none";
-    document.getElementById("intro").style.display="none";
-    document.getElementById("footer").style.display="none";
-    var goeshere=document.getElementById(person.parent);
-    var newlist=document.createElement("ul");
-    newlist.setAttribute("id",person.pid);
-    newlist.className="color"+person.gencolor;
-    var itembox=document.createElement("input"); 
-    itembox.setAttribute("type","text");
-    itembox.setAttribute("size","8");
-    itembox.value=person.name;
-    var itemname=document.createElement("li");
-    var rename=document.createElement("a");
-    rename.setAttribute("href","javascript:getNewName(\""+person.pid+"\", \"" + getname(person) + "\");");	
-    var atext=document.createTextNode(" Rename ");	
-    var gentext=document.createTextNode(" sex: "+person.gender);
-    var itemgen=document.createElement("li");	
-    var livedtext=document.createTextNode(", lived: "+person.bday+" to "+person.dday);
-    var itemlived=document.createElement("li");		
-    var mdaytext=document.createTextNode(", date/age married: "+person.mday+"/"+person.mage);		
-    var itemmday=document.createElement("li");
-    var dagetext=document.createTextNode(", age died: "+person.dage);		
-    var itemdage=document.createElement("li");
-    var ptypetext=document.createTextNode(person.ptype);
-    var itemptype=document.createElement("li");
+// Add a person to the HTML tree, and also add a record to the CVS node.
+function displayPerson(person) { // create and append nodes with person info
+    var goeshere = document.getElementById(person.parent);
+
+    // Create a new element (a <UL/>, as it turns out) for the person.
+    var personHtml = document.createElement("ul");
+    personHtml.setAttribute("id",person.pid);
+    personHtml.className="color"+person.gencolor;
+
+    // Create the name (and rename UI)
+    var namebox = document.createElement("input"); 
+    namebox.setAttribute("type","text");
+    namebox.setAttribute("size","8");
+    namebox.value = person.name;
+    var rename = document.createElement("a");
+    rename.setAttribute("href","javascript:getNewName(\""+person.pid+"\", \"" + getname(person) + "\");");
+    var atext=document.createTextNode(" Rename ");
+    rename.appendChild(atext);
+    var colName = document.createElement("li");
+    colName.appendChild(namebox);
+    colName.appendChild(rename);
+    personHtml.appendChild(colName);
+
+    // Add in the attributes for the person
+    var colGender = appendColumn('gender', '',  person.gender);
+    var colBorn = appendColumn('byear', 'lived ', person.byear);
+    var colDied = appendColumn('dyear', '-', person.dyear);
+    var colWed = appendColumn('myear', ', married in year ', person.myear);
+    var colPop = appendColumn('mage', 'at age of ', person.mage);
+    var colRip = appendColumn('dage', ', passed at the age of ', person.dage);
+    var colPType = appendColumn('ptype', '. Personality:', person.ptype);
+
+    personHtml.appendChild(colGender);
+    personHtml.appendChild(colBorn);
+    personHtml.appendChild(colDied);
+    personHtml.appendChild(colWed);
+    personHtml.appendChild(colPop);
+    personHtml.appendChild(colRip);
+    personHtml.appendChild(colPType);
+
     if (person.family) {
-	var getfam=document.createElement("a");
+	var getfam = document.createElement("a");
 	getfam.setAttribute("href","javascript:getFamily(\""+person.pid+"\");");
 	getfam.setAttribute("id","family"+person.pid);
-	var getfamtext=document.createTextNode(" Get Family ");
-    }
-    itemname.appendChild(itembox);
-    rename.appendChild(atext);
-    itemname.appendChild(rename);
-    newlist.appendChild(itemname);
-    itemgen.appendChild(gentext);
-    newlist.appendChild(itemgen);
-    itemlived.appendChild(livedtext);		
-    newlist.appendChild(itemlived);				
-    itemmday.appendChild(mdaytext);
-    newlist.appendChild(itemmday);
-    itemdage.appendChild(dagetext);
-    newlist.appendChild(itemdage);
-    itemptype.appendChild(ptypetext);
-    if (person.family) {
+	var getfamtext = document.createTextNode(" Get Family ");
 	getfam.appendChild(getfamtext);
-	itemptype.appendChild(getfam);
+	personHtml.appendChild(getfam);
     }
-    newlist.appendChild(itemptype);	
-    goeshere.appendChild(newlist);
+
+    goeshere.appendChild(personHtml);
 }
 </script>
       </head>
@@ -570,8 +664,8 @@ function displayperson(person) { // create and append nodes with person info
         <div id="getinfo">
           <form action="#" method="post" name="startform">
             <p>Name1: <input name="name1" type="text" /> Gender: <select name="gender1" ><option value="x" selected="selected">?</option><option value="M">M</option><option value="F">F</option></select> Year Born: <input name="born1" type="text" size="4" /> Year Married: <input name="married1" type="text" size="4" /> Year Died: <input name="died1" type="text" size="4" /></p>
-            <p>Name2: <input name="name2" type="text" /> Year Born: <input name="born2" type="text" size="4" /> Year Married: <input name="married2" type="text" size="4" /> Year Died: <input name="died2" type="text" size="4" /></p>
-
+            <p>Name2: <input name="name2" type="text" /> Year Born: <input name="born2" type="text" size="4" /> Year Died: <input name="died2" type="text" size="4" /></p>
+            <p>Random Sequence: <input id="seed" name="seed" type="text" value="880010088"/></p>
             <input name="generate" type="button" value="Generate" onclick="getFormData();" />
           </form>
         </div>
